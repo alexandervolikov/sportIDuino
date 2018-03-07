@@ -206,6 +206,8 @@ bool ntagWrite (uint8_t *data, uint8_t pageAdr) {
 /*
  * 
  */
+
+
 bool ntagRead (uint8_t pageAdr){
   byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
 
@@ -338,7 +340,7 @@ void writeMasterTime() {
   SPI.begin();      // Init SPI bus
   mfrc522.PCD_Init();   // Init MFRC522
   // Look for new cards
-  if (!mfrc522.PICC_IsNewCardPresent()) {
+  if ( ! mfrc522.PICC_IsNewCardPresent()) {
     return;
   }
   // Select one of the cards
@@ -609,7 +611,6 @@ void writeMasterLog(){
   mfrc522.PICC_HaltA();
   // Stop encryption on PCD
   mfrc522.PCD_StopCrypto1();
->>>>>>> Mifare S50 support
   SPI.end();
 }
 
