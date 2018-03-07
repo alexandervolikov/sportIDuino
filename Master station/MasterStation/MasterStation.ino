@@ -22,8 +22,8 @@ const byte pagePass = 5;
 const byte pageInfo1 = 6;
 const byte pageInfo2 = 7;
 
-uint8_t ntagValue = 130;
-uint8_t ntagType = 213;
+uint8_t ntagValue = 50;
+uint8_t ntagType = 214;
 
 uint8_t function = 0;
 
@@ -31,6 +31,8 @@ const uint8_t timeOut = 10;
 const uint8_t packetSize = 32;
 const uint8_t dataSize = 30;
 
+
+MFRC522::MIFARE_Key key;
 MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance.
 MFRC522::StatusCode status;
 
@@ -38,6 +40,9 @@ uint8_t serialBuffer[packetSize];
 uint8_t dataBuffer[dataSize];
 
 void setup() {
+  for (byte i = 0; i < 6; i++) {
+    key.keyByte[i] = 0xFF;
+  }
 
   Serial.begin(9600);
   Serial.setTimeout(timeOut); 
@@ -140,25 +145,40 @@ void sendData(uint8_t func, uint8_t leng){
 
 uint8_t dump[16];
 
-//MFRC522::StatusCode MFRC522::MIFARE_Read
-bool ntagWrite (uint8_t *dataBlock, uint8_t pageAdr){
 
-  const uint8_t sizePageNtag = 4;
-  status = (MFRC522::StatusCode) mfrc522.MIFARE_Ultralight_Write(pageAdr, dataBlock, sizePageNtag);
+bool ntagWrite (uint8_t *data, uint8_t pageAdr) {
+  byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
+
+  byte dataBlock[16];
+  dataBlock[0]=data[0];
+  dataBlock[1]=data[1];
+  dataBlock[2]=data[2];
+  dataBlock[3]=data[3];
+
+  byte buffer[18];
+  byte size = sizeof(buffer);
+  byte trailerBlock = blockAddr + (3-blockAddr%4);
+
+  // Authenticate using key A
+  status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+  if (status != MFRC522::STATUS_OK) {
+    return false;
+  }
+
+  // Write data to the block
+  status = (MFRC522::StatusCode) mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
   if (status != MFRC522::STATUS_OK) {
     signalError(0x02);
     return false;
   }
 
-  uint8_t buffer[18];
-  uint8_t size = sizeof(buffer);
-
-  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(pageAdr, buffer, &size);
+  // Read data from the block (again, should now be what we have written)
+  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
   if (status != MFRC522::STATUS_OK) {
-    signalError(0x03);
+    signalError(0x02);
     return false;
   }
- 
+
   for (uint8_t i = 0; i < 4; i++) {
     dump[i]=buffer[i];
   }
@@ -166,29 +186,50 @@ bool ntagWrite (uint8_t *dataBlock, uint8_t pageAdr){
   if (dump[0]==dataBlock[0] && dump[1]==dataBlock[1] && dump[2]==dataBlock[2] && dump[3]==dataBlock[3]){
     return true;
   }
-  else{
+  else {
     return false;
   }
 }
+
 
 /*
  * 
  */
-bool ntagRead (uint8_t pageAdr){
-  uint8_t buffer[18];
-  uint8_t size = sizeof(buffer);
 
-  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(pageAdr, buffer, &size);
+
+bool ntagRead (uint8_t pageAdr){
+  byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
+
+  byte buffer[18];
+  byte size = sizeof(buffer);
+  byte trailerBlock = blockAddr + (3-blockAddr%4);
+  // Authenticate using key A
+  status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+  if (status != MFRC522::STATUS_OK) {
+    return false;
+  }
+
+  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
   if (status != MFRC522::STATUS_OK) {
     signalError(0x03);
     return false;
   }
-  
-  for (uint8_t i = 0; i < 16; i++) {
+
+  byte count = 0;
+  for (byte i = 0; i < 16; i++) {
     dump[i]=buffer[i];
+    // Compare buffer (= what we've read) with dataBlock (= what we've written)
   }
+
+  if (pageAdr==3){
+    dump[2]=0;
+  }
+
   return true;
 }
+
+
+
 
 /*
  * 
@@ -291,7 +332,7 @@ void findFunc(){
 void writeMasterTime(){
   SPI.begin();      // Init SPI bus
   mfrc522.PCD_Init();   // Init MFRC522
- // Look for new cards
+  // Look for new cards
   if ( ! mfrc522.PICC_IsNewCardPresent()) {
     return;
   }
@@ -321,9 +362,11 @@ void writeMasterTime(){
     return;
   }
   
-
   beep(500,3);
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
@@ -359,7 +402,10 @@ void  writeMasterNum(){
   }
 
   signalOK();
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
@@ -405,7 +451,10 @@ void writeMasterPass(){
   }
   
   signalOK();
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
@@ -428,21 +477,6 @@ void writeInit(){
     return;
   }
 
-  
-  if (dump[2]==0x3E) {
-    ntagValue = 130;
-    ntagType = 5;
-  }
-  else if (dump[2]==0x6D){
-    ntagValue = 216;
-    ntagType = 6;
-  }
-  else {
-    ntagValue = 40;
-    ntagType = 3;
-  }
-  
-  
   
   byte Wbuff[] = {255,255,255,255};
   
@@ -482,7 +516,10 @@ void writeInit(){
   }
   
   signalOK();
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
@@ -513,7 +550,10 @@ void writeInfo(){
   }
 
   signalOK();
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
 
   SPI.end();
 }
@@ -535,15 +575,6 @@ void writeMasterLog(){
     return;
   }
 
-  if(!ntagRead(pageCC)){
-    return;
-  }
-
-  uint8_t ntagValue=130;
-
-  if (dump[2]!=0x3E) {
-    return;
-  }
 
   byte Wbuff[] = {255,255,255,255};
   
@@ -574,7 +605,10 @@ void writeMasterLog(){
 
   signalOK();
 
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
@@ -630,9 +664,11 @@ void readLog(){
 
   sendData (function,dataCount);
   packetCount = 0;
-
   
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
@@ -652,14 +688,6 @@ void  readChip(){
   if ( ! mfrc522.PICC_ReadCardSerial()) {
     return;
   }
-
-  if(!ntagRead(pageCC)){
-    return;
-  }
-  
-  if (dump[2]==0x3E) ntagValue = 130;
-  else if (dump[2]==0x6D) ntagValue = 226;
-  else ntagValue=40;
 
   if(!ntagRead(pageInit)){
     return;
@@ -717,7 +745,10 @@ void  readChip(){
   
   sendData (function,dataCount);
   packetCount = 0;
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 
   if (masterConfig==1) {
@@ -748,9 +779,6 @@ void readRawChip(){
     return;
   }
   
-  if (dump[2]==0x3E) ntagValue = 130;
-  else if (dump[2]==0x6D) ntagValue = 224;
-  else ntagValue = 40;
 
   for (uint8_t page = 4; page<ntagValue;page++){
     
@@ -769,7 +797,10 @@ void readRawChip(){
   packetCount = 0;
   
   
-  
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
@@ -801,7 +832,10 @@ void writeMasterSleep(){
   }
 
   signalOK();
-
+  // Halt PICC
+  mfrc522.PICC_HaltA();
+  // Stop encryption on PCD
+  mfrc522.PCD_StopCrypto1();
   SPI.end();
 }
 
