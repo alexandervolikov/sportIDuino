@@ -73,6 +73,7 @@ struct ts t; //time
 
 
 void setup () {
+
   for (byte i = 0; i < 6; i++) {
     key.keyByte[i] = 0xFF;
   }
@@ -429,75 +430,82 @@ uint8_t dump[16];
 
 //MFRC522::StatusCode MFRC522::MIFARE_Read
 bool ntagWrite (uint8_t *data, uint8_t pageAdr){
-  byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
+    byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
 
-  byte dataBlock[16];
-  dataBlock[0]=data[0];
-  dataBlock[1]=data[1];
-  dataBlock[2]=data[2];
-  dataBlock[3]=data[3];
+    byte dataBlock[16];
+    dataBlock[0]=data[0];
+    dataBlock[1]=data[1];
+    dataBlock[2]=data[2];
+    dataBlock[3]=data[3];
+    
+    byte buffer[18];
+    byte size = sizeof(buffer);
+    byte trailerBlock = blockAddr + (3-blockAddr%4);
+    
+    // Authenticate using key A
+    status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+    if (status != MFRC522::STATUS_OK) {
+        return false;
+    }
 
-  byte buffer[18];
-  byte size = sizeof(buffer);
-  byte trailerBlock = blockAddr + (3-blockAddr%4);
-
-  // Authenticate using key A
-  status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
-  if (status != MFRC522::STATUS_OK) {
-    return false;
-  }
-
-  // Write data to the block
-  status = (MFRC522::StatusCode) mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
-  if (status != MFRC522::STATUS_OK) {
-    return false;
-  }
-
-  // Read data from the block (again, should now be what we have written)
-  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
-  if (status != MFRC522::STATUS_OK) {
-    return false;
-  }
-
-  for (uint8_t i = 0; i < 4; i++) {
-    dump[i]=buffer[i];
-  }
-
-  if (dump[0]==dataBlock[0]){
-    return true;
-  }
-  else{
-    return false;
-  }
+    // Write data to the block
+    status = (MFRC522::StatusCode) mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
+    if (status != MFRC522::STATUS_OK) {
+       
+       return false;
+    }
+    
+    // Read data from the block (again, should now be what we have written)
+    status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
+    if (status != MFRC522::STATUS_OK) {
+        
+        return false;
+    }
+   
+    for (uint8_t i = 0; i < 4; i++) {
+      dump[i]=buffer[i];
+    }
+  
+    if (dump[0]==dataBlock[0]){
+      return true;
+    }
+    else{
+      return false;
+    }
+    
 }
 
 bool ntagRead (uint8_t pageAdr){
-  byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
+    byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
+    
+    byte buffer[18];
+    byte size = sizeof(buffer);
+    byte trailerBlock = blockAddr + (3-blockAddr%4);
+     // Authenticate using key A
+    status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+    if (status != MFRC522::STATUS_OK) {
+        return false;
+    }
 
-  byte buffer[18];
-  byte size = sizeof(buffer);
-  byte trailerBlock = blockAddr + (3-blockAddr%4);
-  // Authenticate using key A
-  status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
-  if (status != MFRC522::STATUS_OK) {
-    return false;
-  }
+   
+    status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
+    if (status != MFRC522::STATUS_OK) {
+        
+        return false;
+    }
+   
+    byte count = 0;
+    for (byte i = 0; i < 16; i++) {
+        dump[i]=buffer[i];
+        // Compare buffer (= what we've read) with dataBlock (= what we've written)
+   }
 
-  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
-  if (status != MFRC522::STATUS_OK) {
-    return false;
-  }
-
-  byte count = 0;
-  for (byte i = 0; i < 16; i++) {
-    dump[i]=buffer[i];
-    // Compare buffer (= what we've read) with dataBlock (= what we've written)
-  }
-
-  if (pageAdr==3){
-    dump[2]=0;
-  }
-  return true;
+   if (pageAdr==3){
+        dump[2]=0;
+   }
+   
+   return true;
+   
 }
 
 
@@ -532,6 +540,7 @@ void rfid() {
   uint16_t partNumFirst =0; //part of number
   uint16_t partNumSecond = 0; //part of number
 
+  
   //включаем SPI ищем карту вблизи. Если не находим выходим из функции чтения чипов
   SPI.begin();      // Init SPI bus
   mfrc522.PCD_Init();    // Init MFRC522
@@ -563,6 +572,43 @@ void rfid() {
   //в первых трех байтах находятся нули для обычных чипов и заданные числа для мастер-чипов
   uint8_t info = 0;
   if (dump[2]==255) {
+    uint8_t tempdump[16];
+    tempdump[0]=dump[0];
+    tempdump[1]=dump[1];
+    tempdump[2]=dump[2];
+    tempdump[3]=dump[3];
+
+    if(!ntagRead(blockInfo+1)){
+      return;
+    }
+
+    tempdump[4]=dump[0];
+    tempdump[5]=dump[1];
+    tempdump[6]=dump[2];
+    tempdump[7]=dump[3];
+
+    if(!ntagRead(blockInfo+2)){
+      return;
+    }
+
+    tempdump[8]=dump[0];
+    tempdump[9]=dump[1];
+    tempdump[10]=dump[2];
+    tempdump[11]=dump[3];
+
+    if(!ntagRead(blockInfo+3)){
+      return;
+    }
+
+    tempdump[12]=dump[0];
+    tempdump[13]=dump[1];
+    tempdump[14]=dump[2];
+    tempdump[15]=dump[3];
+
+    for (uint8_t h=0;h<16;h++){
+      dump[h]=tempdump[h];
+    }
+    
     info = dump[1];
     //считываем пароль с мастер-чипа
     uint8_t chipPass[3];
@@ -613,10 +659,12 @@ void rfid() {
   uint8_t ntagType = dump[2]%10;
 
   newPage = findNewPage(50);
+ 
 
   //ищем последнюю пустую страницу в чипе для записи
+  
   //если поиск вышел неудачным, функция возвращает ноль и выходит
-
+  
   if (newPage == 0) return;
 
   //во время поиска последнюю записанную страницу поместили в tempDump. Считываем из неё номер, чтобы убедится, что последняя записанная станция отличается 
@@ -673,9 +721,9 @@ void rfid() {
   loopCount = 0;
 
   // Halt PICC
-  mfrc522.PICC_HaltA();
-  // Stop encryption on PCD
-  mfrc522.PCD_StopCrypto1();
+    mfrc522.PICC_HaltA();
+    // Stop encryption on PCD
+    mfrc522.PCD_StopCrypto1();
   SPI.end();
 
 } // end of rfid()
@@ -882,4 +930,3 @@ uint8_t findNewPage(uint8_t finishpage){
     }
   } 
 }
-
