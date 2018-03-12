@@ -430,81 +430,81 @@ uint8_t dump[16];
 
 //MFRC522::StatusCode MFRC522::MIFARE_Read
 bool ntagWrite (uint8_t *data, uint8_t pageAdr){
-    byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
+  byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
 
-    byte dataBlock[16];
-    dataBlock[0]=data[0];
-    dataBlock[1]=data[1];
-    dataBlock[2]=data[2];
-    dataBlock[3]=data[3];
-    
-    byte buffer[18];
-    byte size = sizeof(buffer);
-    byte trailerBlock = blockAddr + (3-blockAddr%4);
-    
-    // Authenticate using key A
-    status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
-    if (status != MFRC522::STATUS_OK) {
-        return false;
-    }
-
-    // Write data to the block
-    status = (MFRC522::StatusCode) mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
-    if (status != MFRC522::STATUS_OK) {
-       
-       return false;
-    }
-    
-    // Read data from the block (again, should now be what we have written)
-    status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
-    if (status != MFRC522::STATUS_OK) {
-        
-        return false;
-    }
-   
-    for (uint8_t i = 0; i < 4; i++) {
-      dump[i]=buffer[i];
-    }
+  byte dataBlock[16];
+  dataBlock[0]=data[0];
+  dataBlock[1]=data[1];
+  dataBlock[2]=data[2];
+  dataBlock[3]=data[3];
   
-    if (dump[0]==dataBlock[0]){
-      return true;
-    }
-    else{
+  byte buffer[18];
+  byte size = sizeof(buffer);
+  byte trailerBlock = blockAddr + (3-blockAddr%4);
+  
+  // Authenticate using key A
+  status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+  if (status != MFRC522::STATUS_OK) {
       return false;
-    }
+  }
+
+  // Write data to the block
+  status = (MFRC522::StatusCode) mfrc522.MIFARE_Write(blockAddr, dataBlock, 16);
+  if (status != MFRC522::STATUS_OK) {
+     
+     return false;
+  }
+  
+  // Read data from the block (again, should now be what we have written)
+  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
+  if (status != MFRC522::STATUS_OK) {
+      
+      return false;
+  }
+ 
+  for (uint8_t i = 0; i < 4; i++) {
+    dump[i]=buffer[i];
+  }
+
+  if (dump[0]==dataBlock[0]){
+    return true;
+  }
+  else{
+    return false;
+  }
     
 }
 
 bool ntagRead (uint8_t pageAdr){
-    byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
-    
-    byte buffer[18];
-    byte size = sizeof(buffer);
-    byte trailerBlock = blockAddr + (3-blockAddr%4);
-     // Authenticate using key A
-    status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
-    if (status != MFRC522::STATUS_OK) {
-        return false;
-    }
+  byte blockAddr = pageAdr-3 + ((pageAdr-3)/3);
+  
+  byte buffer[18];
+  byte size = sizeof(buffer);
+  byte trailerBlock = blockAddr + (3-blockAddr%4);
+   // Authenticate using key A
+  status = (MFRC522::StatusCode) mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, trailerBlock, &key, &(mfrc522.uid));
+  if (status != MFRC522::STATUS_OK) {
+      return false;
+  }
 
-   
-    status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
-    if (status != MFRC522::STATUS_OK) {
-        
-        return false;
-    }
-   
-    byte count = 0;
-    for (byte i = 0; i < 16; i++) {
-        dump[i]=buffer[i];
-        // Compare buffer (= what we've read) with dataBlock (= what we've written)
-   }
+ 
+  status = (MFRC522::StatusCode) mfrc522.MIFARE_Read(blockAddr, buffer, &size);
+  if (status != MFRC522::STATUS_OK) {
+      
+      return false;
+  }
+ 
+  byte count = 0;
+  for (byte i = 0; i < 16; i++) {
+      dump[i]=buffer[i];
+      // Compare buffer (= what we've read) with dataBlock (= what we've written)
+ }
 
-   if (pageAdr==3){
-        dump[2]=0;
-   }
-   
-   return true;
+ if (pageAdr==3){
+      dump[2]=0;
+ }
+ 
+ return true;
    
 }
 

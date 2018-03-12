@@ -1,10 +1,10 @@
-The card Ntag 213 / 215 / 216 can record up to 32/120/216 marks. In the form of labels, these cards cost 0.1 / 0.2 / 0.4 $, in the keychain form twice as expensive.
+This development branch is devoted to the use of common chips Mifare Classic 1K (S50). They come bundled with the RC522 module, and can also be purchased separately. Their structure is noticeable different from Ntag chips, especially the implementation of encryption, so incompatibility occurs and requires the use of separate firmware for base stations and master stations. For the convenience of developers, the structure copies Ntag, leaving three-quarters of the memory unused.
 
-Important! For reliable operation with these cards, which have a small antenna area (like the keychains below) it is necessary to replace the inductors with the more powerful ones in the RFID RC522 module (described on the page "Base station assembly").
+The chips S50 can record up to 42 marks, in the form of key fobs, these chips cost 10 rubles. You can significantly increase the capacity of chips (up to 170 marks), but this is fraught with the risk of data loss, since you will have to have several marks on one page, which involves the risk of data loss, as the record is performed only in whole pages.
 
 ![](https://raw.githubusercontent.com/alexandervolikov/sportiduino/master/Images/Chip.JPG)
 
-The memory of the Ntag 213/215/216 cards is structurally divided into 45/135/231 pages, each containing 4 bytes. The first 4 pages contain UID and other service information. Also, the service information is contained in the last 5 pages. Thus, 36/126/222 pages remain for the record.
+The structure of the record is below. It is copied from the description for Ntag. The difference from Ntag213 is that it is used for 10 pages more. For a better understanding of the differences, please refer to [datasheet] (www.nxp.com/documents/data_sheet/MF1S50YYX.pdf)
 
 The structure of the record is presented below. 4-7 pages are reserved, the rest of the pages are for the mark. In the 4th page, the first two bytes contain the programmable card number. The third byte contains information about card type: 3 - Ntag213, 5 - Ntag 215, 6 - Ntag 216, it is automatically set. In the 4th byte, the firmware version. On the fifth page, the initialization time of the card in unixtime format (with it you can restore the first byte time in the marks.) Then two pages of the reserve. The recording of a mark on the station takes a separate page, the first byte of which records the station number, in the remaining three bytes - the lower bytes of the current time in unixtime (the total time is then restored using the initialization time recorded in the 5th page ).
 
